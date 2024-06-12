@@ -244,6 +244,7 @@ $parallelExtension = [ParallelExtension]::new(
             }
         }
         finally {
+            $pingResultTask.Dispose()
             $ping.Dispose()
         }
     }
