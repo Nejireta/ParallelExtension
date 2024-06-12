@@ -70,8 +70,9 @@ class ParallelExtension {
         }
 
         # defines values in $_parameters parameter which stores the passed through variables to the PowerShell script
-        #$this._parameters.Pipeline = @($item, $this.Argument)
-        $this._parameters.Pipeline = $pipelineArray
+        #$this._parameters.Pipeline = $pipelineArray
+        $this._parameters.Pipeline = $item
+        $this._parameters.ArgumentList = $this.ArgumentList
     }
 
     hidden [System.Collections.ObjectModel.Collection[psobject]] GetIterationParameter() {
@@ -190,7 +191,7 @@ class ParallelExtension {
 
 # defines arguments to pass as parameters to class
 $hashSet = [System.Collections.Generic.HashSet[ipaddress]]::new()
-$inputObjectCount = 1000
+$inputObjectCount = 30
 $pingTimeout = 2000
 for ($i = 0; $i -lt $inputObjectCount; $i++) {
     $random = [System.Random]::new()
@@ -207,12 +208,12 @@ $parallelExtension = [ParallelExtension]::new(
     $argumentList,
     {
         param (
-            $Pipeline
+            $Pipeline, $ArgumentList
         )
 
         $hostName = $null
         $ping = [System.Net.NetworkInformation.Ping]::new()
-        $pingResultTask = $ping.SendPingAsync($Pipeline[0], $Pipeline[1])
+        $pingResultTask = $ping.SendPingAsync($Pipeline[0], $ArgumentList[0])
         $hostEntryTask = [System.Net.Dns]::GetHostEntryAsync($Pipeline[0])
 
         try {
@@ -232,6 +233,7 @@ $parallelExtension = [ParallelExtension]::new(
                 Status        = $pingResult.Status
                 Address       = $pingResult.Address.IPAddressToString
                 RoundtripTime = ([string]::Concat($pingResult.RoundtripTime, 'ms' ))
+                AgumentList   = $ArgumentList
             }
         }
         catch {
@@ -241,6 +243,7 @@ $parallelExtension = [ParallelExtension]::new(
                 Status        = $pingResult.Status
                 Address       = $pingResult.Address.IPAddressToString
                 RoundtripTime = ([string]::Concat($pingResult.RoundtripTime, 'ms' ))
+                AgumentList   = $ArgumentList
             }
         }
         finally {
@@ -253,8 +256,8 @@ $parallelExtension = [ParallelExtension]::new(
 
 $pingResult = $parallelExtension.InvokeParallel()
 # Get item where ping is successful and DNS record exists
-$pingResult.Where({$_.Status -eq 'Success' -and $null -ne $_.HostName})
+$pingResult.Where({ $_.Status -eq 'Success' -and $null -ne $_.HostName })
 # Dispose of the class when it's usecase is over to flag it for the garbage collector
-#$parallelExtension.Dispose()
+$parallelExtension.Dispose()
 
 
