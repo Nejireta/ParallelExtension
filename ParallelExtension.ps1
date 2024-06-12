@@ -192,12 +192,8 @@ class ParallelExtension {
 $hashSet = [System.Collections.Generic.HashSet[ipaddress]]::new()
 $inputObjectCount = 1000
 $pingTimeout = 2000
-[void]$hashSet.Add([ipaddress]::Parse([ipaddress]::Parse('1.1.1.1')))
-[void]$hashSet.Add([ipaddress]::Parse([ipaddress]::Parse('8.8.8.8')))
-for ($i = 0; $i -lt $inputObjectCount; $i++) {
-    $random = [System.Random]::new()
-    [void]$hashSet.Add([ipaddress]::Parse("$($random.Next(10, 240)).$($random.Next(10, 240)).$($random.Next(10, 240)).$($random.Next(10, 240))"))
-}
+[void]$hashSet.Add([ipaddress]::Parse([ipaddress]::Parse('127.0.0.1')))
+[void]$hashSet.Add([ipaddress]::Parse([ipaddress]::Parse('0.0.0.0')))
 
 $inputObject = [System.Linq.Enumerable]::ToArray($hashSet)
 $argumentList = @($pingTimeout)
@@ -214,7 +210,7 @@ $parallelExtension = [ParallelExtension]::new(
         )
 
         $hostName = $null
-        $portRange = @(21, 22, 80, 135, 389, 443, 445, 636, 3389)
+        $portRange = @(1, 2, 3, 4, 5, 6, 7, 8, 9)
         $hostEntryTask = [System.Net.Dns]::GetHostEntryAsync($Pipeline[0])
 
         try {
