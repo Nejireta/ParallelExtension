@@ -186,15 +186,16 @@ class ParallelExtension {
     }
 }
 
-# Example usecase of class
+# Example usecase of class where ping is sent to random hosts
 
 # defines arguments to pass as parameters to class
 $hashSet = [System.Collections.Generic.HashSet[ipaddress]]::new()
 $inputObjectCount = 1000
 $pingTimeout = 2000
-[void]$hashSet.Add([ipaddress]::Parse([ipaddress]::Parse('127.0.0.1')))
-[void]$hashSet.Add([ipaddress]::Parse([ipaddress]::Parse('0.0.0.0')))
-
+for ($i = 0; $i -lt $inputObjectCount; $i++) {
+    $random = [System.Random]::new()
+    [void]$hashSet.Add([ipaddress]::Parse("$($random.Next(10, 240)).$($random.Next(10, 240)).$($random.Next(10, 240)).$($random.Next(10, 240))"))
+}
 $inputObject = [System.Linq.Enumerable]::ToArray($hashSet)
 $argumentList = @($pingTimeout)
 
@@ -210,7 +211,8 @@ $parallelExtension = [ParallelExtension]::new(
         )
 
         $hostName = $null
-        $portRange = @(1, 2, 3, 4, 5, 6, 7, 8, 9)
+        $ping = [System.Net.NetworkInformation.Ping]::new()
+        $pingResultTask = $ping.SendPingAsync($Pipeline[0], $Pipeline[1])
         $hostEntryTask = [System.Net.Dns]::GetHostEntryAsync($Pipeline[0])
 
         try {
@@ -221,41 +223,37 @@ $parallelExtension = [ParallelExtension]::new(
             $hostName = $null
         }
 
-        $openPorts = @()
-        foreach ($itemI in $portRange) {
-            $tcpClient = [System.Net.Sockets.TcpClient]::new()
-            $tcpClient.ReceiveTimeout = 1000
-            $tcpClient.SendTimeout = 1000
-            try {
-                $cancellationTokenSource = [System.Threading.CancellationTokenSource]::new(1000)
-                [void]$tcpClient.ConnectAsync($Pipeline[0], $itemI, $cancellationTokenSource.Token).GetAwaiter().GetResult()
-                [void]$tcpClient.Close()
-                $openPorts += $itemI
-            }
-            catch {
-                if ($cancellationTokenSource.Token.IsCancellationRequested) {
-                    [void]$tcpClient.Close()
-                    $tcpClient.Dispose()
-                }
-                $null
+        try {
+            while (!$pingResultTask.AsyncWaitHandle.WaitOne(1)) {}
+            $pingResult = $pingResultTask.GetAwaiter().GetResult()
+            return [PSCustomObject]@{
+                HostName      = $hostName
+                IPAddress     = $Pipeline[0]
+                Status        = $pingResult.Status
+                Address       = $pingResult.Address.IPAddressToString
+                RoundtripTime = ([string]::Concat($pingResult.RoundtripTime, 'ms' ))
             }
         }
-        $tcpClient.Dispose()
-
-        return [PSCustomObject]@{
-            HostName = $hostName
-            IPAddress = $Pipeline[0]
-            OpenPorts = $openPorts
+        catch {
+            return [PSCustomObject]@{
+                HostName      = $hostName
+                IPAddress     = $Pipeline[0]
+                Status        = $pingResult.Status
+                Address       = $pingResult.Address.IPAddressToString
+                RoundtripTime = ([string]::Concat($pingResult.RoundtripTime, 'ms' ))
+            }
+        }
+        finally {
+            $ping.Dispose()
         }
     }
 )
 
 
-$result = $parallelExtension.InvokeParallel()
+$pingResult = $parallelExtension.InvokeParallel()
 # Get item where ping is successful and DNS record exists
-#$result.Where({$null -ne $_.OpenPorts})
+$pingResult.Where({$_.Status -eq 'Success' -and $null -ne $_.HostName})
 # Dispose of the class when it's usecase is over to flag it for the garbage collector
 #$parallelExtension.Dispose()
-
 
 
